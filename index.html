@@ -124,7 +124,7 @@ void main() {
   if (0. < norm) {
     color.r = norm / 10.;
     color.g = 1. - norm / 1.5;
-    color.b = norm / 1.5;
+    color.b = norm / 2.5;
   }
 
   float zCoord = norm;
@@ -133,7 +133,7 @@ void main() {
   }
 
   gl_Position = u_matrix * vec4(pt, zCoord / 4., 1);
-  gl_PointSize = 1.;
+  gl_PointSize = 1.5;
 
   v_color = vec4(color, 1);
 }
@@ -189,16 +189,16 @@ void main() {
 
     // let tt = computeDimension(numVerts);
     // console.log(tt);
-    const targetNumVerts = 4e5; //1 000 000;
+    const targetNumVerts = 2e5; //1 000 000;
     let [nbX, nbY] = computeDimension(targetNumVerts);
     const xMin = -2;
     const xMax = .5;
 
     // console.log(canvas);
     let rotator = new SimpleRotator(canvas, drawScene, 3, 0, 0);
-    rotator.setXLimit(90);
-    rotator.setYLimit(90);
-
+    rotator.setXLimitMin(-90);
+    rotator.setXLimitMax(0);
+    rotator.setYLimit(0);
     // displayMousePosition();
 
     // tell webgl to cull faces
@@ -241,6 +241,7 @@ void main() {
       // console.log(viewMatrix);
 
       let modelview = m4.transpose(rotator.getViewMatrix());
+      // let modelview = rotator.getViewMatrix();
       // console.log(modelview);
 
       // const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview);

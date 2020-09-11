@@ -54,21 +54,26 @@
  * @param rotX if present, must be a number.  Gives the initial rotation
  *     about the x-axis, in degrees. If not present, the default is zero.
  */
+// Rotation around Z is not allowed.
 function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
     canvas.addEventListener("mousedown", doMouseDown, false);
     canvas.addEventListener("touchstart", doTouchStart, false);
     var rotateX = (rotX === undefined)? 0 : rotX;
     var rotateY = (rotY === undefined)? 0 : rotY;
-    var xLimit = 85;
+    var xLimitMin = -90;
+    var xLimitMax = 0;
     var yLimit = 85;
     var center;
     var degreesPerPixelX = 90/canvas.height;
     var degreesPerPixelY = 180/canvas.width; 
     this.getXLimit = function() {
-        return xLimit;
+        return [xLimitMin, xLimitMax];
     }
-    this.setXLimit = function(limitInDegrees) {
-        xLimit = Math.min(90,Math.max(0,limitInDegrees));
+    this.setXLimitMax = function(limitInDegrees) {
+        xLimitMax = Math.min(90,Math.max(0,limitInDegrees));
+    }
+    this.setXLimitMin = function(limitInDegrees) {
+        xLimitMin = Math.min(0,Math.max(-90,limitInDegrees));
     }
     this.getYLimit = function() {
         return yLimit;
@@ -83,7 +88,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         center = rotationCenter;
     }
     this.setAngles = function( rotY, rotX ) {
-        rotateX = Math.max(-xLimit, Math.min(xLimit,rotX));
+        rotateX = Math.max(xLimitMin, Math.min(xLimitMax,rotX));
         rotateY = Math.max(-yLimit, Math.min(yLimit,rotY));;
         if (callback) {
             callback();
@@ -142,7 +147,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         var y = evt.clientY - r.top;
         var newRotX = rotateX + degreesPerPixelX * (y - prevY);
         var newRotY = rotateY + degreesPerPixelY * (x - prevX);
-        newRotX = Math.max(-xLimit, Math.min(xLimit,newRotX));
+        newRotX = Math.max(xLimitMin, Math.min(xLimitMax,newRotX));
         newRotY = Math.max(-yLimit, Math.min(yLimit,newRotY));
         prevX = x;
         prevY = y;
@@ -187,7 +192,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         var y = evt.touches[0].clientY - r.top;
         var newRotX = rotateX + degreesPerPixelX * (y - prevY);
         var newRotY = rotateY + degreesPerPixelY * (x - prevX);
-        newRotX = Math.max(-xLimit, Math.min(xLimit,newRotX));
+        newRotX = Math.max(xLimitMin, Math.min(xLimitMax,newRotX));
         newRotY = Math.max(-yLimit, Math.min(yLimit,newRotY));
         prevX = x;
         prevY = y;
