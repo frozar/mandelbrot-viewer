@@ -60,6 +60,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
     var rotateX = (rotX === undefined)? 0 : rotX;
     var rotateY = (rotY === undefined)? 0 : rotY;
     var xLimit = 85;
+    var yLimit = 85;
     var center;
     var degreesPerPixelX = 90/canvas.height;
     var degreesPerPixelY = 180/canvas.width; 
@@ -67,7 +68,13 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         return xLimit;
     }
     this.setXLimit = function(limitInDegrees) {
-        xLimit = Math.min(85,Math.max(0,limitInDegrees));
+        xLimit = Math.min(90,Math.max(0,limitInDegrees));
+    }
+    this.getYLimit = function() {
+        return yLimit;
+    }
+    this.setYLimit = function(limitInDegrees) {
+        yLimit = Math.min(90,Math.max(0,limitInDegrees));
     }
     this.getRotationCenter = function() {
         return (center === undefined) ? [0,0,0] : center;
@@ -77,7 +84,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
     }
     this.setAngles = function( rotY, rotX ) {
         rotateX = Math.max(-xLimit, Math.min(xLimit,rotX));
-        rotateY = rotY;
+        rotateY = Math.max(-yLimit, Math.min(yLimit,rotY));;
         if (callback) {
             callback();
         }
@@ -136,6 +143,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         var newRotX = rotateX + degreesPerPixelX * (y - prevY);
         var newRotY = rotateY + degreesPerPixelY * (x - prevX);
         newRotX = Math.max(-xLimit, Math.min(xLimit,newRotX));
+        newRotY = Math.max(-yLimit, Math.min(yLimit,newRotY));
         prevX = x;
         prevY = y;
         if (newRotX != rotateX || newRotY != rotateY) {
@@ -180,6 +188,7 @@ function SimpleRotator(canvas, callback, viewDistance, rotY, rotX) {
         var newRotX = rotateX + degreesPerPixelX * (y - prevY);
         var newRotY = rotateY + degreesPerPixelY * (x - prevX);
         newRotX = Math.max(-xLimit, Math.min(xLimit,newRotX));
+        newRotY = Math.max(-yLimit, Math.min(yLimit,newRotY));
         prevX = x;
         prevY = y;
         if (newRotX != rotateX || newRotY != rotateY) {

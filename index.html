@@ -54,21 +54,23 @@ for webgl-utils, m3, m4, and webgl-lessons-ui.
   const gl = document.querySelector('#c').getContext('webgl2');
 
   const vs = `#version 300 es
+uniform float u_xMin;
+uniform float u_xMax;
 uniform int u_nbX;
 uniform int u_nbY;
 uniform mat4 u_matrix;
 
 out vec4 v_color;
 
-vec2 computePt(int nbX, int nbY, int vertexID) {
-  // x € [-2 ; 1]
-  float xSpread = 3.;
+vec2 computePt(int nbX, float xMin, float xMax, int nbY, int vertexID) {
+  // x € [xMin ; xMax] near to the set [-2 ; 1]
+  float xSpread = xMax - xMin;
   int idxX = int(float(gl_VertexID) / float(nbY));
   float xIncrement = xSpread / float(nbX - 1);
 
   float x = float(idxX) * xIncrement;
 
-  x -= float(2);
+  x += xMin;
 
   // y € [-1 ; 1]
   float ySpread = 2.;
@@ -83,40 +85,19 @@ vec2 computePt(int nbX, int nbY, int vertexID) {
   return pt;
 }
 
-vec2 computeColor(int nbX, int nbY, int vertexID) {
-  // x € [-2 ; 1]
-  float xSpread = 3.;
-  int idxX = int(float(gl_VertexID) / float(nbY));
-  float xIncrement = xSpread / float(nbX - 1);
-  float x = float(idxX) * xIncrement;
-
-  float xColor = x / xSpread;
-
-  // y € [-1 ; 1]
-  float ySpread = 2.;
-  int idxY = int(gl_VertexID % nbY);
-  float yIncrement = ySpread / float(nbY - 1);
-  float y = float(idxY) * yIncrement;
-
-  float yColor = y / ySpread;
-
-  vec2 color = vec2(xColor, yColor);
-  return color;
-}
-
 float squareNorm (float zReal, float zIm) {
   return zReal * zReal + zIm * zIm;
 }
 
-float computeMandelbrot(vec2 pt) {
+float computeMandelbrot(vec2 pt, int salt) {
   // z{n+1} = z{n}^2 + C
   float zReal = 0.;
   float zIm = 0.;
   float CReal = pt.x;
   float CIm = pt.y;
 
-  int iterMax = 200;
   int iter = 0;
+  int iterMax = 400 + salt;
   float res = 0.;
   while (iter < iterMax) {
     float zRealNext = zReal * zReal - (zIm * zIm) + CReal;
@@ -136,11 +117,10 @@ float computeMandelbrot(vec2 pt) {
 }
 
 void main() {
-  vec2 pt = computePt(u_nbX, u_nbY, gl_VertexID);
-  // vec2 color = computeColor(u_nbX, u_nbY, gl_VertexID);
+  vec2 pt = computePt(u_nbX, u_xMin, u_xMax, u_nbY, gl_VertexID);
   
   vec3 color = vec3(0, 0, 0);
-  float norm = computeMandelbrot(pt);
+  float norm = computeMandelbrot(pt, gl_VertexID % 97);
   if (0. < norm) {
     color.r = norm / 10.;
     color.g = 1. - norm / 1.5;
@@ -152,7 +132,7 @@ void main() {
     zCoord = 0.;
   }
 
-  gl_Position = u_matrix * vec4(pt, zCoord / 3., 1);
+  gl_Position = u_matrix * vec4(pt, zCoord / 4., 1);
   gl_PointSize = 1.;
 
   v_color = vec4(color, 1);
@@ -195,6 +175,8 @@ void main() {
 
     // look up uniform locations
     const matrixLoc = gl.getUniformLocation(program, "u_matrix");
+    const xMinLoc = gl.getUniformLocation(program, 'u_xMin');
+    const xMaxLoc = gl.getUniformLocation(program, 'u_xMax');
     const nbXLoc = gl.getUniformLocation(program, 'u_nbX');
     const nbYLoc = gl.getUniformLocation(program, 'u_nbY');
 
@@ -207,13 +189,17 @@ void main() {
 
     // let tt = computeDimension(numVerts);
     // console.log(tt);
-    const targetNumVerts = 8e5; //1 000 000;
+    const targetNumVerts = 4e5; //1 000 000;
     let [nbX, nbY] = computeDimension(targetNumVerts);
+    const xMin = -2;
+    const xMax = .5;
 
     // console.log(canvas);
-    let rotator = new SimpleRotator(canvas, drawScene, 3, 0, -70);
+    let rotator = new SimpleRotator(canvas, drawScene, 3, 0, 0);
+    rotator.setXLimit(90);
+    rotator.setYLimit(90);
 
-    displayMousePosition();
+    // displayMousePosition();
 
     // tell webgl to cull faces
     gl.enable(gl.CULL_FACE);
@@ -236,6 +222,8 @@ void main() {
       gl.useProgram(program);
 
       // tell the shader the number of verts
+      gl.uniform1f(xMinLoc, xMin);
+      gl.uniform1f(xMaxLoc, xMax);
       gl.uniform1i(nbXLoc, nbX);
       gl.uniform1i(nbYLoc, nbY);
 
@@ -245,7 +233,8 @@ void main() {
       const projectionMatrix = m4.perspective(fieldOfViewRadians, aspect, zNear, zFar);
 
       // Setup the cameraMatrix which is the inverse of the viewMatrix
-      const cameraMatrix = m4.translation(-0.5, 0, 5.);
+      const xMid = (xMin + xMax) / 2.;
+      const cameraMatrix = m4.translation(xMid, 0, 0);
 
       // Make a viewMatrix from the camera matrix.
       const viewMatrix = m4.inverse(cameraMatrix);
@@ -254,7 +243,8 @@ void main() {
       let modelview = m4.transpose(rotator.getViewMatrix());
       // console.log(modelview);
 
-      const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview); //, viewMatrix);
+      // const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview);
+      const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview, viewMatrix);
 
       // Set the matrix.
       gl.uniformMatrix4fv(matrixLoc, true, viewProjectionMatrix);
