@@ -184,11 +184,6 @@ void main() {
       return d * Math.PI / 180;
     }
 
-    // Variable to setup the projectionViewMatrix and interaction
-    var fieldOfViewRadians = degToRad(60);
-
-    // let tt = computeDimension(numVerts);
-    // console.log(tt);
     const targetNumVerts = 2e5; //1 000 000;
     let [nbX, nbY] = computeDimension(targetNumVerts);
     const xMin = -2;
@@ -205,10 +200,13 @@ void main() {
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
 
+    // Variable to setup the projectionViewMatrix and interaction
+    var fieldOfViewRadians = degToRad(60);
+    canvas.addEventListener("wheel", doWheel);
+
     drawScene();
 
     function drawScene() {
-      // time *= 0.001;
       // draw
       webglUtils.resizeCanvasToDisplaySize(gl.canvas);
 
@@ -252,13 +250,20 @@ void main() {
 
       const numVerts = nbX * nbY;
       const offset = 0;
-      // console.log("BEFORE");
       gl.drawArrays(gl.POINTS, offset, numVerts);
-      // console.log("AFTER");
       // requestAnimationFrame(drawScene);
     }
     // requestAnimationFrame(drawScene);
 
+    function doWheel(evt) {
+      const deltaSign = Math.sign(evt.deltaY);
+      // console.log("deltaSign: " + deltaSign);
+      let factor = 1. + deltaSign * 1e-1;
+      fieldOfViewRadians *= factor;
+      fieldOfViewRadians = Math.min(fieldOfViewRadians, 2 * Math.PI / 3);
+      // console.log("fieldOfViewRadians: " + fieldOfViewRadians);
+      drawScene();
+    }
 
     function computeDimension(numVerts) {
       // nbX / nbY = 3 / 2
