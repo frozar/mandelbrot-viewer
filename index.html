@@ -56,13 +56,15 @@ for webgl-utils, m3, m4, and webgl-lessons-ui.
   const vs = `#version 300 es
 uniform float u_xMin;
 uniform float u_xMax;
+uniform float u_yMin;
+uniform float u_yMax;
 uniform int u_nbX;
 uniform int u_nbY;
 uniform mat4 u_matrix;
 
 out vec4 v_color;
 
-vec2 computePt(int nbX, float xMin, float xMax, int nbY, int vertexID) {
+vec2 computePt(int nbX, float xMin, float xMax, int nbY, float yMin, float yMax, int vertexID) {
   // x € [xMin ; xMax] near to the set [-2 ; 1]
   float xSpread = xMax - xMin;
   int idxX = int(float(gl_VertexID) / float(nbY));
@@ -73,13 +75,13 @@ vec2 computePt(int nbX, float xMin, float xMax, int nbY, int vertexID) {
   x += xMin;
 
   // y € [-1 ; 1]
-  float ySpread = 2.;
+  float ySpread = yMax - yMin;
   int idxY = int(gl_VertexID % nbY);
   float yIncrement = ySpread / float(nbY - 1);
 
   float y = float(idxY) * yIncrement;
 
-  y -= float(1);
+  y += yMin;
 
   vec2 pt = vec2(x, y);
   return pt;
@@ -117,7 +119,7 @@ float computeMandelbrot(vec2 pt, int salt) {
 }
 
 void main() {
-  vec2 pt = computePt(u_nbX, u_xMin, u_xMax, u_nbY, gl_VertexID);
+  vec2 pt = computePt(u_nbX, u_xMin, u_xMax, u_nbY, u_yMin, u_yMax, gl_VertexID);
   
   vec3 color = vec3(0, 0, 0);
   float norm = computeMandelbrot(pt, gl_VertexID % 97);
@@ -169,6 +171,29 @@ void main() {
     }, false);
   }
 
+  function clipSpace(viewProjectionMatrix, zNear, zFar) {
+    let mInv = m4.inverse(viewProjectionMatrix);
+    let tmp = [
+      [zFar, zFar, zFar, zFar],
+      [-zFar, zFar, zFar, zFar],
+      [zFar, -zFar, zFar, zFar],
+      [-zFar, -zFar, zFar, zFar],
+      [zNear, zNear, -zNear, zNear],
+      [zNear, -zNear, -zNear, zNear],
+      [-zNear, zNear, -zNear, zNear],
+      [-zNear, -zNear, -zNear, zNear],
+    ];
+    tmp = tmp.map(vec => m4.vectMult(mInv, vec));
+    let allX = tmp.map(vec => vec[0]);
+    let minX = Math.min(...allX);
+    let maxX = Math.max(...allX);
+    let allY = tmp.map(vec => vec[1]);
+    let minY = Math.min(...allY);
+    let maxY = Math.max(...allY);
+    // return tmp;
+    return [minX, maxX, minY, maxY];
+  }
+
   function main() {
     // setup GLSL program
     const program = webglUtils.createProgramFromSources(gl, [vs, fs]);
@@ -177,6 +202,8 @@ void main() {
     const matrixLoc = gl.getUniformLocation(program, "u_matrix");
     const xMinLoc = gl.getUniformLocation(program, 'u_xMin');
     const xMaxLoc = gl.getUniformLocation(program, 'u_xMax');
+    const yMinLoc = gl.getUniformLocation(program, 'u_yMin');
+    const yMaxLoc = gl.getUniformLocation(program, 'u_yMax');
     const nbXLoc = gl.getUniformLocation(program, 'u_nbX');
     const nbYLoc = gl.getUniformLocation(program, 'u_nbY');
 
@@ -184,10 +211,12 @@ void main() {
       return d * Math.PI / 180;
     }
 
-    const targetNumVerts = 2e5; //1 000 000;
+    const targetNumVerts = 2e5;
     let [nbX, nbY] = computeDimension(targetNumVerts);
-    const xMin = -2;
-    const xMax = .5;
+    const xAbsolutMin = -2;
+    const xAbsolutMax = .5;
+    const yAbsolutMin = -1;
+    const yAbsolutMax = 1;
 
     // console.log(canvas);
     let rotator = new SimpleRotator(canvas, drawScene, 3, 0, 0);
@@ -219,31 +248,90 @@ void main() {
 
       gl.useProgram(program);
 
-      // tell the shader the number of verts
-      gl.uniform1f(xMinLoc, xMin);
-      gl.uniform1f(xMaxLoc, xMax);
-      gl.uniform1i(nbXLoc, nbX);
-      gl.uniform1i(nbYLoc, nbY);
-
       const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
       const zNear = 1;
-      const zFar = 20;
+      const zFar = 4;
       const projectionMatrix = m4.perspective(fieldOfViewRadians, aspect, zNear, zFar);
+      // m4.print(projectionMatrix);
+      // console.log(m4.vectMult(m4.inverse(projectionMatrix), [-1, -1, -1, -1]));
+      // console.log(m4.vectMult(m4.inverse(projectionMatrix), [-1, -1, 1, 1]));
+      // const top = Math.tan(fieldOfViewRadians / 2) * zNear;
+      // const right = top * aspect;
+      // console.log("right: " + right);
+      // console.log("top: " + top);
+      // console.log(m4.vectMult(projectionMatrix, [right, top, -zNear, 1]));
+      // console.log(m4.vectMult(projectionMatrix, [-right, -top, -zFar, 1]));
+      // console.log(m4.vectMult(projectionMatrix, [zFar / zNear * right, zFar / zNear * top, -zFar, 1]));
+      // console.log(m4.vectMult(projectionMatrix, [-zFar / zNear * right, -zFar / zNear * top, -zFar, 1]));
+
+      // console.log(m4.vectMult(m4.inverse(projectionMatrix), [-1, -1, -zFar, -zFar]));
 
       // Setup the cameraMatrix which is the inverse of the viewMatrix
-      const xMid = (xMin + xMax) / 2.;
-      const cameraMatrix = m4.translation(xMid, 0, 0);
+      const xMid = (xAbsolutMin + xAbsolutMax) / 2.;
+      const translationMatrix = m4.translation(xMid, 0, 0);
+      // m4.print(translationMatrix);
 
       // Make a viewMatrix from the camera matrix.
-      const viewMatrix = m4.inverse(cameraMatrix);
+      // const viewMatrix = m4.inverse(translationMatrix);
       // console.log(viewMatrix);
 
-      let modelview = m4.transpose(rotator.getViewMatrix());
-      // let modelview = rotator.getViewMatrix();
-      // console.log(modelview);
+      const rotationMatrix = m4.transpose(rotator.getViewMatrix());
+      // m4.print(rotationMatrix);
+
+      const viewMatrix = m4.multiply(rotationMatrix, m4.inverse(translationMatrix));
+      // console.log(m4.vectMult(m4.inverse(viewMatrix),
+      //   [-zFar / zNear * right, -zFar / zNear * top, -zFar, 1]));
+
+      // console.log("viewMatrix");
+      // m4.print(viewMatrix);
 
       // const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview);
-      const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview, viewMatrix);
+      // const viewProjectionMatrix = m4.multiply(projectionMatrix, modelview, viewMatrix);
+      const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [-zFar, -zFar, zFar, zFar]));
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [zNear, zNear, -zNear, zNear]));
+      let [xClipMin, xClipMax, yClipMin, yClipMax] = clipSpace(viewProjectionMatrix, zNear, zFar);
+      console.log([xClipMin, xClipMax, yClipMin, yClipMax]);
+      let xEffectiveMin = Math.max(xClipMin, xAbsolutMin);
+      let xEffectiveMax = Math.min(xClipMax, xAbsolutMax);
+      let yEffectiveMin = Math.max(yClipMin, yAbsolutMin);
+      let yEffectiveMax = Math.min(yClipMax, yAbsolutMax);
+      // console.log(m4.vectMult(projectionMatrix, [right, top, -zNear, 1]));
+
+      // m4.print(m4.inverse(viewProjectionMatrix));
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix), [-1, -1, -1, 1]));
+      // m4.print(viewProjectionMatrix);
+      // console.log("inverse");
+      // m4.print(m4.inverse(viewProjectionMatrix));
+      // console.log(m4.vectMult(viewProjectionMatrix, [0, 0, 0, 1]));
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix), 
+      //   [1.4179535290236522, 0, 1.2105263157894735, 3]));
+      // console.log(m4.vectMult(viewProjectionMatrix, [-2, -1, 0, 1]));
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [-2.3632558817060874, -1.7320508075688776, 1.2105263157894735, 3]));
+      // console.log(m4.vectMult(viewProjectionMatrix, [-2, -1, 1, 1]));
+      // console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [-1, -1, -1, (1 - (-0.475 * -1)) / 0.525]));
+      //   console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [-1, -1, 1, (1 + (-0.475 * -1)) / 0.525]));
+      //   console.log(m4.vectMult(m4.inverse(viewProjectionMatrix),
+      //   [1, -1, -1, (1 - (-0.475 * -1)) / 0.525]));
+
+      console.log("xEffectiveMin: " + xEffectiveMin);
+      console.log("xEffectiveMax: " + xEffectiveMax);
+      console.log("yEffectiveMin: " + yEffectiveMin);
+      console.log("yEffectiveMax: " + yEffectiveMax);
+      // tell the shader the number of verts
+      // gl.uniform1f(xMinLoc, xAbsolutMin);
+      // gl.uniform1f(xMaxLoc, xAbsolutMax);
+      gl.uniform1f(xMinLoc, xEffectiveMin);
+      gl.uniform1f(xMaxLoc, xEffectiveMax);
+      gl.uniform1f(yMinLoc, yEffectiveMin);
+      gl.uniform1f(yMaxLoc, yEffectiveMax);
+      gl.uniform1i(nbXLoc, nbX);
+      gl.uniform1i(nbYLoc, nbY);
 
       // Set the matrix.
       gl.uniformMatrix4fv(matrixLoc, true, viewProjectionMatrix);
@@ -280,6 +368,10 @@ void main() {
     }
   }
 
+  function precise(x) {
+    return Number.parseFloat(x).toPrecision(3);
+  }
+
   var m4 = {
     identity:
       [
@@ -288,6 +380,15 @@ void main() {
         0, 0, 1, 0,
         0, 0, 0, 1,
       ],
+
+    print: function (m) {
+      const p = m.map(precise);
+      console.log(p[0] + " " + p[1] + " " + p[2] + " " + p[3] + ";");
+      console.log(p[4] + " " + p[5] + " " + p[6] + " " + p[7] + ";");
+      console.log(p[8] + " " + p[9] + " " + p[10] + " " + p[11] + ";");
+      console.log(p[12] + " " + p[13] + " " + p[14] + " " + p[15]);
+      console.log("");
+    },
 
     transpose: function (m) {
       return [
@@ -334,6 +435,20 @@ void main() {
       return arrayArgs.reduce(
         (resMat, currentMat) => m4.multiply2Matrices(resMat, currentMat),
         m4.identity);
+    },
+
+    vectMult: function (m, v) {
+      let res = Array(4);
+
+      for (let i = 0; i < 4; ++i) {
+        let acc = 0;
+        for (let j = 0; j < 4; ++j) {
+          acc += m[i * 4 + j] * v[j];
+        }
+        res[i] = acc;
+      }
+
+      return res;
     },
 
     perspective: function (fieldOfViewInRadians, aspect, near, far) {
@@ -434,7 +549,6 @@ void main() {
     },
   }
 
-  // main();
 </script>
 
 
