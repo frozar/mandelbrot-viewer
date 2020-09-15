@@ -90,7 +90,7 @@ float squareNorm (float zReal, float zIm) {
   return zReal * zReal + zIm * zIm;
 }
 
-float computeMandelbrot(vec2 pt, int salt) {
+vec2 computeMandelbrot(vec2 pt, int salt) {
   // z{n+1} = z{n}^2 + C
   float zReal = 0.;
   float zIm = 0.;
@@ -98,7 +98,7 @@ float computeMandelbrot(vec2 pt, int salt) {
   float CIm = pt.y;
 
   int iter = 0;
-  int iterMax = 500 + salt;
+  int iterMax = 200 + salt;
   float res = 0.;
   while (iter < iterMax) {
     float zRealNext = zReal * zReal - (zIm * zIm) + CReal;
@@ -114,29 +114,33 @@ float computeMandelbrot(vec2 pt, int salt) {
     }
     iter += 1;
   }
-  return res;
+  if (res == 0.) {
+    return vec2(0., 0.);
+  }
+  else {
+    return vec2(1., -zReal);
+  }
 }
 
 void main() {
   vec2 pt = computePt(u_nbX, u_xMin, u_xMax, u_nbY, u_yMin, u_yMax, gl_VertexID);
   
   vec3 color = vec3(0, 0, 0);
-  float norm = computeMandelbrot(pt, gl_VertexID % 997);
-  if (0. < norm) {
-    color.r = 1. - norm / .5;
-    color.g = norm / 2.;
-    color.b = norm / 1.5;
+  vec2 res = computeMandelbrot(pt, gl_VertexID % 269);
+  bool converged = (res[0] == 1.);
+  float zCoord = res[1];  // zCoord € [-2 ; 2]
+  if (converged) {
+    color.r = 1. - (zCoord + 0.3) / 2.;
+    color.g = zCoord / 10.;
+    color.b = zCoord / 1.;
+    v_color = vec4(color, 0.6);
+  }
+  else {
+    v_color = vec4(color, 0.1);
   }
 
-  float zCoord = norm;
-  if (zCoord == 0.) {
-    zCoord = 0.;
-  }
-
-  gl_Position = u_matrix * vec4(pt, -zCoord / 2., 1);
-  gl_PointSize = 1.5;
-
-  v_color = vec4(color, 1);
+  gl_Position = u_matrix * vec4(pt, zCoord, 1);
+  gl_PointSize = 2.;
 }
 `;
 
@@ -357,7 +361,7 @@ void main() {
   function clipSpace2(viewProjectionMatrix, zNear, zFar) {
     let frustumWorld =
       computeFrustumExtremities(viewProjectionMatrix, zNear, zFar);
-      // console.log(frustumWorld);
+    // console.log(frustumWorld);
     // let frustumPlane = computeFrustumPlanes(frustumWorld);
     // let planeLeft = computePlaneEquation.apply(null, frustumPlane["planeLeft"]);
     // console.log(planeLeft);
@@ -400,7 +404,7 @@ void main() {
           return planeSegmentIntersection(planeToClip, seg);
         })
         .filter(pt => pt != null)
-        ;
+      ;
     // console.log(intersectionPoints);
     let allX = intersectionPoints.map(vec => vec[0]);
     let minX = Math.min(...allX);
@@ -444,7 +448,8 @@ void main() {
 
     // tell webgl to cull faces
     gl.enable(gl.CULL_FACE);
-    gl.enable(gl.DEPTH_TEST);
+    // https://stackoverflow.com/questions/18439897/webgl-fragment-shader-opacity
+    gl.disable(gl.DEPTH_TEST);
 
     // Variable to setup the projectionViewMatrix and interaction
     var fieldOfViewRadians = degToRad(60);
@@ -462,6 +467,9 @@ void main() {
       // Clear the canvas
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.enable(gl.BLEND);
 
       gl.useProgram(program);
 
